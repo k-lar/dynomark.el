@@ -16,6 +16,13 @@
 (defvar dynomark--overlays nil
   "List of active overlays created by dynomark.")
 
+(defun dynomark--executable-available-p ()
+  "Check if `dynomark` CLI is available in PATH."
+  (if (executable-find "dynomark")
+      t
+    (message "Error: `dynomark` is not available on your system.")
+    nil))
+
 (defun dynomark--extract-code-blocks ()
   "Extract all fenced code blocks marked with `dynomark`."
   (let (code-blocks)
@@ -63,56 +70,49 @@
 (defun dynomark-process-blocks ()
   "Find `dynomark` fenced code blocks, run `dynomark` CLI, and overlay the results on top of the query."
   (interactive)
-  (dynomark--clear-overlays)  ;; Clear any existing overlays before re-creating them
-  (let ((code-blocks (dynomark--extract-code-blocks)))
-    (dolist (block code-blocks)
-      (let* ((start (nth 0 block))  ;; Start of the block content
-             (end (nth 1 block))    ;; End of the block content
-             (content (nth 2 block)) ;; The code block query text
-             (result (dynomark--run-cli content))) ;; Query the dynomark CLI
-        ;; Create an overlay that covers the query text with the result
-        (dynomark--create-overlay start end result)))))
-
-(defun dynomark-insert-results ()
-  "Process the current buffer and insert results for all `dynomark` blocks."
-  (interactive)
-  (when (eq major-mode 'markdown-mode)
-    (dynomark-process-blocks)))
+  (when (dynomark--executable-available-p)  ;; Check if dynomark is available
+    (dynomark--clear-overlays)  ;; Clear any existing overlays before re-creating them
+    (let ((code-blocks (dynomark--extract-code-blocks)))
+      (dolist (block code-blocks)
+        (let* ((start (nth 0 block))  ;; Start of the block content
+               (end (nth 1 block))    ;; End of the block content
+               (content (nth 2 block)) ;; The code block query text
+               (result (dynomark--run-cli content))) ;; Query the dynomark CLI
+          ;; Create an overlay that covers the query text with the result
+          (dynomark--create-overlay start end result))))))
 
 ;;;###autoload
 (defun dynomark-toggle ()
   "Toggle the visibility of dynomark overlays."
   (interactive)
-  (if dynomark--overlays
-      (dynomark--clear-overlays)  ;; Remove overlays if they exist
-    (dynomark-process-blocks)))   ;; Recreate overlays if none exist
+  (when (dynomark--executable-available-p)  ;; Check if dynomark is available
+    (if dynomark--overlays
+        (dynomark--clear-overlays)  ;; Remove overlays if they exist
+      (dynomark-process-blocks))))   ;; Recreate overlays if none exist
 
 ;;;###autoload
 (defun dynomark-compile-in-new-buffer ()
   "Evaluate all `dynomark` blocks in the current file, replace them with the result, and put the final content in a new buffer."
   (interactive)
-  (let ((new-buffer (generate-new-buffer "*dynomark-output*" ))
-        (content (buffer-substring-no-properties (point-min) (point-max))))
-    (with-current-buffer new-buffer
-      (insert content)  ;; Copy original content to new buffer
-      (markdown-mode)  ;; Activate markdown-mode in new buffer
-      (goto-char (point-min))
-      ;; Replace all `dynomark` blocks with their evaluated results
-      (while (re-search-forward "```dynomark\\(\\(.\\|\n\\)*?\\)```" nil t)
-        (let* ((block-start (match-beginning 0))
-               (block-end (match-end 0))
-               (query (match-string 1))  ;; Extract the dynomark query
-               (result (dynomark--run-cli query)))  ;; Get dynomark result
-          ;; Replace the entire fenced block with the dynomark result
-          (delete-region block-start block-end)
-          (goto-char block-start)
-          (insert result)))
-      ;; Switch to the new buffer with results
-      (pop-to-buffer new-buffer))))
-
-;; Example keybinding:
-;; (define-key markdown-mode-map (kbd "C-c d") 'dynomark-insert-results)
-;; (define-key markdown-mode-map (kbd "C-c t") 'dynomark-toggle-overlays)
+  (when (dynomark--executable-available-p)  ;; Check if dynomark is available
+    (let ((new-buffer (generate-new-buffer "*dynomark-output*" ))
+          (content (buffer-substring-no-properties (point-min) (point-max))))
+      (with-current-buffer new-buffer
+        (insert content)  ;; Copy original content to new buffer
+        (markdown-mode)  ;; Activate markdown-mode in new buffer
+        (goto-char (point-min))
+        ;; Replace all `dynomark` blocks with their evaluated results
+        (while (re-search-forward "```dynomark\\(\\(.\\|\n\\)*?\\)```" nil t)
+          (let* ((block-start (match-beginning 0))
+                 (block-end (match-end 0))
+                 (query (match-string 1))  ;; Extract the dynomark query
+                 (result (dynomark--run-cli query)))  ;; Get dynomark result
+            ;; Replace the entire fenced block with the dynomark result
+            (delete-region block-start block-end)
+            (goto-char block-start)
+            (insert result)))
+        ;; Switch to the new buffer with results
+        (pop-to-buffer new-buffer)))))
 
 (provide 'dynomark)
 
