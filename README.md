@@ -71,3 +71,6 @@ When you run `dynomark-toggle` in the buffer, the results of the query will look
 - [ ] Do the last thing
 ```
 ````
+
+It also provides a command `dynomark-compile-in-new-buffer` that will **replace** the
+queries (including the fenced block syntax) with the results in a new buffer.
